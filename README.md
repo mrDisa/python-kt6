@@ -1,6 +1,6 @@
 # КТ6 — финальный проект TaskBoard (FastAPI)
 
-**Тема:** API управления проектами и задачами. **Максимум по заданию:** 40 баллов. Это учебная реализация без фиктивного утверждения, что публичный деплой уже выполнен.
+**Тема:** API управления проектами и задачами. **Максимум по заданию:** 40 баллов. Приложение развёрнуто на Railway: FastAPI, PostgreSQL, Redis и отдельный Celery worker.
 
 ## Возможности и структура
 
@@ -80,11 +80,33 @@ docker compose exec api alembic upgrade head
 docker compose exec api alembic revision --autogenerate -m "schema update"
 ```
 
-## Публикация для последних 5 баллов
+## Публичный деплой на Railway
 
-**Публичный URL не предоставляется**, потому что деплой на личный VPS/Railway требует доступа к твоему аккаунту, домену и секретам.
+- Swagger: https://python-kt6-production.up.railway.app/docs
+- Health: https://python-kt6-production.up.railway.app/health
+- Исходники и CI: https://github.com/mrDisa/python-kt6/actions
 
-На VPS с Docker: скопировать репозиторий, создать `.env` с секретами и `DATABASE_URL` на сервис `db`, выполнить `docker compose up --build -d`. Настроить домен и HTTPS через Caddy или Nginx (проксировать на `127.0.0.1:8000`), не выставлять PostgreSQL/Redis наружу. Ограничить входящий порт 8000 при использовании reverse proxy и обновить CORS_ORIGINS под фронтенд. После деплоя проверить `https://ВАШ_ДОМЕН/health` и `https://ВАШ_ДОМЕН/docs`. Запушить репозиторий на GitHub и убедиться в зелёном workflow в Actions.
+Проверено 24 ноября 2026: регистрация → **201**, OAuth2-вход → JWT, создание проекта → **201**, создание задачи → **201** с UUID фоновой работы, получение результата Celery → **200 / SUCCESS**, health → `{"status":"ok"}`. Все четыре сервиса Railway имеют статус Online. Уведомление демонстрационное: внешняя почта не отправляется.
+
+API и worker собираются из ветки `main` одного репозитория. PostgreSQL и Redis подключены через ссылки на переменные Railway; секрет JWT хранится только в окружении API.
+
+Команда запуска API:
+
+```bash
+sh -c 'alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'
+```
+
+Healthcheck API: `/health`. Публичный домен направлен на порт `8080`.
+
+Команда запуска worker:
+
+```bash
+celery -A app.workers.celery_app:celery_app worker --loglevel=info --concurrency=1
+```
+
+Worker не имеет публичного домена и HTTP-healthcheck. Оба процесса используют один Redis. Формат подключения SQLAlchemy — `postgresql+psycopg://`; значения пользователя, пароля, хоста, порта и имени базы берутся из переменных сервиса Postgres. Миграции применяются перед запуском API.
+
+Развёртывание использует пробный баланс Railway: срок доступности зависит от оставшихся средств и условий аккаунта.
 
 ### Безопасность и ограничения
 
